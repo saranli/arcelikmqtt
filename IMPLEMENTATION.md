@@ -1,45 +1,46 @@
-# Arcelik MQTT Bridge - Complete Entity Implementation
+# Arcelik MQTT Bridge - Streamlined Entity Implementation
 
 ## Overview
-The Arcelik MQTT Bridge now provides comprehensive Home Assistant integration with birth/will messages, automatic reconnection, and a complete set of entity types for full AC control.
+The Arcelik MQTT Bridge provides comprehensive Home Assistant integration with birth/will messages, automatic reconnection, and a streamlined set of essential entity types for efficient AC control.
 
 ## 🎯 Successfully Implemented Features
 
-### 🔘 Switch Entities
+### 🔘 Switch Entities (2)
 - **AC Power Switch**: `arcelik/{device_id}/set/power` (ON/OFF)
 - **Turbo Mode Switch**: `arcelik/{device_id}/set/turbo` (ON/OFF)
   - Enables cooling mode when turned on
   - Maps to API `acMode` setting 0 (cooling)
 
-### 🔢 Number Entities  
+### 🔢 Number Entities (1)
 - **Temperature Setting**: `arcelik/{device_id}/set/temperature`
-  - Range: 16-30°C (step: 1°C)
-  - Adaptive range based on mode (18-30 for cooling, 16-30 for heating)
+  - Range: 18-30°C (step: 1°C)
+  - Dynamically adjusts based on current mode
 
-### 📋 Select Entities
+### 📋 Select Entities (4)
 - **AC Mode**: `arcelik/{device_id}/set/mode`
-  - Options: `cool`, `dry`, `fan_only`, `heat`, `auto`
-  - API mapping: 0=cool, 1=dry, 2=fan_only, 4=heat, 6=auto
+  - Options: `cooling`, `dry_air`, `fan_only`, `heating`, `auto`
+  - API mapping: 0=cooling, 1=dry_air, 2=fan_only, 4=heating, 6=auto
 
 - **Fan Speed**: `arcelik/{device_id}/set/fan_speed` 
   - Options: `auto`, `speed_1`, `speed_2`, `speed_3`, `speed_4`, `speed_5`
   - API mapping: 8=auto, 2-6=speeds 1-5
 
 - **Vertical Swing**: `arcelik/{device_id}/set/vertical_swing`
-  - Options: `off`, `position_1` to `position_6`, `continuous`
-  - API mapping: 0=off, 1-6=positions, 100=continuous
+  - Options: `off`, `position_1` to `position_6`, `auto`
+  - API mapping: 0=off, 1-6=positions, 100=auto
 
 - **Horizontal Swing**: `arcelik/{device_id}/set/horizontal_swing`
-  - Options: `off`, `position_1` to `position_5`, `leftmost`, `rightmost`, `continuous`
-  - API mapping: 0=off, 1-5=positions, 13=leftmost, 35=rightmost, 100=continuous
+  - Options: `off`, `position_1` to `position_5`, `leftmost`, `rightmost`, `auto`
+  - API mapping: 0=off, 1-5=positions, 13=leftmost, 35=rightmost, 100=auto
 
-### 📊 Sensor Entities
+### � Binary Sensor Entities (1)
+- **Display Lights Status**: Read-only binary sensor showing AC display lights state
+  - Maps from API `acLightsOff` parameter (inverted: acLightsOff=0 means lights ON)
+
+### 📊 Sensor Entities (3)
 - **Current Temperature**: Real-time temperature reading (°C)
-- **Current Fan Speed**: Active fan speed setting
-- **Current Vertical/Horizontal Swing**: Active swing positions (numeric)
 - **Power Consumption**: Instant power usage (W) from `acInstantPower`
 - **Total Energy**: Cumulative energy consumption (kWh) from `acPowerConsumption`
-- **Swing Mode Sensors**: Current swing mode descriptions
 
 ## 🌐 MQTT Topics Structure
 
@@ -48,18 +49,19 @@ The Arcelik MQTT Bridge now provides comprehensive Home Assistant integration wi
 homeassistant/switch/arcelik_{entity}_{device_id}/config
 homeassistant/number/arcelik_{entity}_{device_id}/config  
 homeassistant/select/arcelik_{entity}_{device_id}/config
+homeassistant/binary_sensor/arcelik_{entity}_{device_id}/config
 homeassistant/sensor/arcelik_{entity}_{device_id}/config
 ```
 
 ### Command Topics
 ```
-arcelik/{device_id}/set/power          # ON/OFF
-arcelik/{device_id}/set/turbo          # ON/OFF
-arcelik/{device_id}/set/temperature    # 16-30
-arcelik/{device_id}/set/mode           # cool|dry|fan_only|heat|auto
-arcelik/{device_id}/set/fan_speed      # auto|speed_1|speed_2|speed_3|speed_4|speed_5
-arcelik/{device_id}/set/vertical_swing # off|position_1-6|continuous
-arcelik/{device_id}/set/horizontal_swing # off|position_1-5|leftmost|rightmost|continuous
+arcelik/{device_id}/set/power            # ON/OFF
+arcelik/{device_id}/set/turbo            # ON/OFF  
+arcelik/{device_id}/set/temperature      # 18-30
+arcelik/{device_id}/set/mode             # cooling|dry_air|fan_only|heating|auto
+arcelik/{device_id}/set/fan_speed        # auto|speed_1|speed_2|speed_3|speed_4|speed_5
+arcelik/{device_id}/set/vertical_swing   # off|position_1-6|auto
+arcelik/{device_id}/set/horizontal_swing # off|position_1-5|leftmost|rightmost|auto
 ```
 
 ### State Topics
@@ -86,10 +88,11 @@ arcelik/bridge/availability            # Bridge status
 - 🔘 **2 Switches**: Power, Turbo Mode
 - 🔢 **1 Number**: Temperature Setting  
 - 📋 **4 Selects**: Mode, Fan Speed, Vertical Swing, Horizontal Swing
-- 📊 **8 Sensors**: Current temp, fan speed, swing positions, power, energy, swing modes
+- 📊 **1 Binary Sensor**: Display Lights Status (read-only)
+- 📊 **3 Sensors**: Current Temperature, Power Consumption, Total Energy
 
-**Total per Device**: 15 entities  
-**Total for 2 Devices**: 30 entities
+**Total per Device**: 11 entities  
+**Total for 2 Devices**: 22 entities
 
 ## 🔧 Configuration
 
@@ -138,11 +141,12 @@ mosquitto_pub -h 192.168.1.244 -u arcelik -P password \
 
 - ✅ Birth & Last Will Messages
 - ✅ Automatic MQTT & API Reconnection  
-- ✅ Comprehensive Entity Structure (15 entities per device)
+- ✅ Streamlined Entity Structure (11 entities per device)
 - ✅ Switch Entities (Power, Turbo)
 - ✅ Number Entities (Temperature)
 - ✅ Select Entities (Mode, Fan, Swings)
-- ✅ Sensor Entities (Temperature, Power, Energy, States)
+- ✅ Binary Sensor Entities (Display Lights Status)
+- ✅ Sensor Entities (Temperature, Power, Energy)
 - ✅ Proper API Mappings & Value Validation
 - ✅ Real-time State Updates
 - ✅ Command Processing & Validation

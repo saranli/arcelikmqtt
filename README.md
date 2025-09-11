@@ -4,12 +4,36 @@ This Node.js application creates a bridge between Arcelik Air Conditioning units
 
 ## Features
 
-- **Real-time monitoring**: Receives live status updates from AC units
-- **Full control**: Power, temperature, mode, fan speed, swing controls
-- **Home Assistant integration**: Auto-discovery via MQTT
+- **Real-time monitoring**: Receives live status updates from AC units via WebSocket
+- **Full control**: Power, temperature, mode, fan speed, swing controls, turbo mode
+- **Home Assistant integration**: Auto-discovery via MQTT with comprehensive entity support
 - **Energy monitoring**: Power consumption and instant power sensors
 - **Multi-device support**: Automatically discovers all AC units on your account
-- **Robust error handling**: Automatic reconnection and error recovery
+- **Robust connectivity**: Birth/will messages, automatic reconnection, availability tracking
+- **Complete entity set**: 11 entities per device (2 switches, 1 number, 4 selects, 1 binary sensor, 3 sensors)
+
+## Current Entity Implementation
+
+### Switch Entities (2 per device)
+- **Power Switch**: Turn AC unit on/off
+- **Turbo Mode Switch**: Enable/disable turbo mode
+
+### Number Entities (1 per device)  
+- **Temperature Setting**: Target temperature control (18-30°C)
+
+### Select Entities (4 per device)
+- **AC Mode**: cooling, dry_air, fan_only, heating, auto
+- **Fan Speed**: auto, speed_1, speed_2, speed_3, speed_4, speed_5
+- **Vertical Swing**: off, position_1-6, auto
+- **Horizontal Swing**: off, position_1-5, leftmost, rightmost, auto
+
+### Binary Sensor Entities (1 per device)
+- **Display Lights Status**: Read-only status of AC display panel lights
+
+### Sensor Entities (3 per device)
+- **Current Temperature**: Real-time temperature reading
+- **Power Consumption**: Instant power usage (W)
+- **Total Energy**: Cumulative energy consumption (kWh)
 
 ## Prerequisites
 
@@ -92,59 +116,76 @@ npm start
 
 ## Home Assistant Integration
 
-### Climate Entity
-Each AC unit appears as a climate entity in Home Assistant with:
-- **Power control**: On/Off
-- **Temperature control**: Target temperature (16-30°C)
-- **Mode selection**: Auto, Cool, Heat, Dry, Fan Only
-- **Fan speed**: Low, Medium, High
-- **Current temperature**: Real-time temperature reading
+The bridge automatically configures Home Assistant via MQTT discovery. Each AC unit appears with 11 entities:
 
-### Sensors
-Additional sensors for each unit:
-- **Power Consumption**: Total energy usage (kWh)
-- **Instant Power**: Current power draw (W)
+### Switch Entities
+- **Power Switch**: Master on/off control
+- **Turbo Mode Switch**: High-performance cooling mode
 
-### Example Home Assistant Configuration
+### Number Entity
+- **Temperature Setting**: Target temperature (18-30°C, 1°C steps)
 
-The bridge automatically configures Home Assistant via MQTT discovery. No manual configuration needed!
+### Select Entities  
+- **AC Mode**: cooling, dry_air, fan_only, heating, auto
+- **Fan Speed**: auto, speed_1, speed_2, speed_3, speed_4, speed_5
+- **Vertical Swing**: off, position_1-6, auto  
+- **Horizontal Swing**: off, position_1-5, leftmost, rightmost, auto
 
-### Manual MQTT Topics (if needed)
+### Binary Sensor Entities
+- **Display Lights Status**: Read-only status of AC display panel lights
 
-- **State topic**: `arcelik/{device_id}/state`
-- **Command topic**: `arcelik/{device_id}/set`
+### Sensor Entities
+- **Current Temperature**: Real-time ambient temperature
+- **Power Consumption**: Current power draw (W)
+- **Total Energy**: Cumulative energy usage (kWh)
 
-### Command Examples:
-```json
-// Turn on AC
-{"power": "on"}
+### MQTT Topics
 
-// Set temperature
-{"temperature": 24}
+**State Topic**: `arcelik/{device_id}/state`
+**Command Topics**: 
+- `arcelik/{device_id}/set/power` (ON/OFF)
+- `arcelik/{device_id}/set/turbo` (ON/OFF)  
+- `arcelik/{device_id}/set/temperature` (18-30)
+- `arcelik/{device_id}/set/mode` (cooling/dry_air/fan_only/heating/auto)
+- `arcelik/{device_id}/set/fan_speed` (auto/speed_1-5)
+- `arcelik/{device_id}/set/vertical_swing` (off/position_1-6/auto)
+- `arcelik/{device_id}/set/horizontal_swing` (off/position_1-5/leftmost/rightmost/auto)
 
-// Change mode
-{"mode": "cool"}
-
-// Set fan speed
-{"fan_mode": "high"}
-
-// Combined command
-{"power": "on", "temperature": 22, "mode": "cool", "fan_mode": "medium"}
-```
+**Availability Topic**: `arcelik/{device_id}/availability` (online/offline)
 
 ## API Mappings
 
 ### AC Modes
-- `0` → `auto`
-- `1` → `cool`
-- `2` → `dry`
-- `4` → `heat`
-- `6` → `fan_only`
+- `0` → `cooling`
+- `1` → `dry_air` 
+- `2` → `fan_only`
+- `4` → `heating`
+- `6` → `auto`
 
-### Fan Speeds
-- `1` → `low`
-- `2` → `medium`
-- `3` → `high`
+### Fan Speeds  
+- `8` → `auto`
+- `2` → `speed_1`
+- `3` → `speed_2`
+- `4` → `speed_3`
+- `5` → `speed_4`
+- `6` → `speed_5`
+
+### Vertical Swing
+- `0` → `off`
+- `1-6` → `position_1` to `position_6`
+- `100` → `auto`
+
+### Horizontal Swing
+- `0` → `off`  
+- `1-5` → `position_1` to `position_5`
+- `13` → `leftmost`
+- `35` → `rightmost`
+- `100` → `auto`
+
+### Switch Controls
+- **Power**: `acPower` (1=on, 0=off)
+- **Turbo**: `acTurbo` (1=on, 0=off)
+- **Display Lights**: `acLightsOff` (0=lights on, 1=lights off - inverted logic)
 
 ## Troubleshooting
 
@@ -190,8 +231,12 @@ sudo journalctl -u arcelik-mqtt -f
 # Subscribe to all topics
 mosquitto_sub -h homeassistant.local -t "arcelik/#" -v
 
-# Send a command
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set" -m '{"power":"on"}'
+# Send commands
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/power" -m "ON"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/temperature" -m "24"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
 ```
 
 ## Security Notes

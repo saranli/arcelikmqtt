@@ -112,7 +112,7 @@ class ArcelikMQTTBridge {
             // Get user info and endpoints
             await this.getUserInfo();
             await this.getEndpoints();
-            await this.registerClient();
+            //await this.registerClient();
             
             // Setup real-time event listeners
             this.setupEventListeners();
@@ -337,10 +337,12 @@ class ArcelikMQTTBridge {
             }, (body, JWR) => {
                 if (JWR.statusCode >= 200 && JWR.statusCode < 300) {
                     this.log(`API request successful: ${method.toUpperCase()} ${url}`, 'debug');
+                    //this.log(`API response body: ${JSON.stringify(body, null, 2)}`, 'debug');
                     resolve(body);
                 } else {
                     const error = new Error(`API request failed: ${method.toUpperCase()} ${url} - ${JWR.statusCode}`);
                     this.log(error.message, 'error');
+                    //this.log(`API error response: ${JSON.stringify(body, null, 2)}`, 'error');
                     
                     // Handle authentication errors
                     if (JWR.statusCode === 401 || JWR.statusCode === 403) {
@@ -600,6 +602,22 @@ class ArcelikMQTTBridge {
 
         // === SENSOR ENTITIES ===
 
+        // AC Display Lights Binary Sensor (read-only acLightsOff status)
+        const displayLightsSensorConfig = {
+            name: `${device.name} Display Lights`,
+            unique_id: `arcelik_display_lights_${deviceId}`,
+            device: deviceInfo,
+            state_topic: stateTopic,
+            value_template: "{% if value_json.display_lights_state %}ON{% else %}OFF{% endif %}",
+            payload_on: "ON",
+            payload_off: "OFF",
+            availability: [{
+                topic: availabilityTopic
+            }],
+            icon: "mdi:lightbulb",
+            device_class: "light"
+        };
+
         // Current Temperature Sensor
         const currentTempSensorConfig = {
             name: `${device.name} Current Temperature`,
@@ -671,6 +689,8 @@ class ArcelikMQTTBridge {
             JSON.stringify(horizontalSwingSelectConfig), { retain: true });
 
         // Sensors
+        this.mqttClient.publish(`${this.config.discoveryPrefix}/binary_sensor/arcelik_${deviceId}/display_lights/config`, 
+            JSON.stringify(displayLightsSensorConfig), { retain: true });
         this.mqttClient.publish(`${this.config.discoveryPrefix}/sensor/arcelik_${deviceId}/current_temperature/config`, 
             JSON.stringify(currentTempSensorConfig), { retain: true });
         this.mqttClient.publish(`${this.config.discoveryPrefix}/sensor/arcelik_${deviceId}/power_consumption/config`, 
@@ -681,7 +701,7 @@ class ArcelikMQTTBridge {
         // Publish initial availability
         this.mqttClient.publish(availabilityTopic, availabilityStatus, { retain: true });
 
-        this.log(`Home Assistant discovery configured for device ${deviceId} with streamlined entities`);
+        this.log(`Home Assistant discovery configured for device ${deviceId} with 11 entities (2 switches, 1 number, 4 selects, 1 binary sensor, 3 sensors)`);
     }
 
     publishDeviceState(deviceId) {
@@ -694,6 +714,7 @@ class ArcelikMQTTBridge {
             // Basic power and mode state
             power_state: state.acPower ? 'on' : 'off',
             turbo_state: state.acTurbo ? true : false,
+            display_lights_state: state.acLightsOff ? false : true, // Inverted logic: acLightsOff=1 means lights OFF
             current_temperature: state.temperature || null,
             target_temperature: state.targetTemperature || null,
             
@@ -795,7 +816,7 @@ class ArcelikMQTTBridge {
 
                 default:
                     this.log(`Unknown command type: ${commandType}`, 'error');
-                    break;
+                    break; 
             }
             
         } catch (error) {
@@ -805,11 +826,15 @@ class ArcelikMQTTBridge {
 
     async sendACCommand(endpointId, type, value) {
         try {
-            await this.makeAuthenticatedRequest('/api/endpoints/sendACState', 'post', {
+            const commandData = {
                 type: type,
                 value: value,
                 endpoint: endpointId
-            });
+            };
+            
+            //this.log(`Sending AC command: ${JSON.stringify(commandData)}`, 'debug');
+            
+            await this.makeAuthenticatedRequest('/api/endpoints/sendACState', 'post', commandData);
             
             this.log(`Sent command to ${endpointId}: ${type} = ${value}`);
         } catch (error) {
