@@ -1,52 +1,27 @@
-# Arcelik AC MQTT Bridge for Home Assistant
+# Home Assistant MQTT Bridge for controlling older Arçelik Air Conditioning units
 
-This Node.js application creates a bridge between Arcelik Air Conditioning units and Home Assistant via MQTT. It reverse-engineers the API used by the official Arcelik mobile app to provide real-time monitoring and control of AC units through Home Assistant.
+This Node.js application creates a bridge between older Arçelik Air Conditioning units ((such as the 18340, 12345 and 12346 models) and Home Assistant via MQTT. It does so by using the API between the ArçelikConnect app and their cloud server on https://kiwi.cosa.com.tr. Please refer to [the API documentation](ARCELIKCONNECT.md) for details.
 
 ## Features
 
-- **Real-time monitoring**: Receives live status updates from AC units via WebSocket
-- **Full control**: Power, temperature, mode, fan speed, swing controls, turbo mode
-- **Home Assistant integration**: Auto-discovery via MQTT with comprehensive entity support
-- **Energy monitoring**: Power consumption and instant power sensors
 - **Multi-device support**: Automatically discovers all AC units on your account
+- **Full control**: Power, temperature, mode, fan speed, swing controls, turbo mode
+- **Real-time monitoring**: Receives live status updates and power consumption data from AC units via WebSocket
+- **Home Assistant integration**: Auto-discovery via MQTT with comprehensive entity support. 11 entities per device (2 switches, 1 number, 4 selects, 1 binary sensor, 3 sensors)
 - **Robust connectivity**: Birth/will messages, automatic reconnection, availability tracking
-- **Complete entity set**: 11 entities per device (2 switches, 1 number, 4 selects, 1 binary sensor, 3 sensors)
-
-## Current Entity Implementation
-
-### Switch Entities (2 per device)
-- **Power Switch**: Turn AC unit on/off
-- **Turbo Mode Switch**: Enable/disable turbo mode
-
-### Number Entities (1 per device)  
-- **Temperature Setting**: Target temperature control (18-30°C)
-
-### Select Entities (4 per device)
-- **AC Mode**: cooling, dry_air, fan_only, heating, auto
-- **Fan Speed**: auto, speed_1, speed_2, speed_3, speed_4, speed_5
-- **Vertical Swing**: off, position_1-6, auto
-- **Horizontal Swing**: off, position_1-5, leftmost, rightmost, auto
-
-### Binary Sensor Entities (1 per device)
-- **Display Lights Status**: Read-only status of AC display panel lights
-
-### Sensor Entities (3 per device)
-- **Current Temperature**: Real-time temperature reading
-- **Power Consumption**: Instant power usage (W)
-- **Total Energy**: Cumulative energy consumption (kWh)
 
 ## Prerequisites
 
 - Node.js (v14 or later)
 - Home Assistant with MQTT broker (Mosquitto)
-- Arcelik AC unit with WiFi connectivity
-- Arcelik mobile app account
+- Arçelik AC unit with WiFi connectivity and ArcelikConnect support
+- ArcelikConnect mobile app account
 
 ## Installation
 
 1. **Clone and setup:**
    ```bash
-   cd /home/saranli/ArcelikConnect/node
+   cd /home/saranli/ArçelikConnect/node
    npm install
    ```
 
@@ -58,21 +33,21 @@ This Node.js application creates a bridge between Arcelik Air Conditioning units
 
 3. **Update configuration in `.env`:**
    ```env
-   # Your Arcelik account credentials
-   ARCELIK_EMAIL=your_email@example.com
-   ARCELIK_PASSWORD=your_password
+   # Your Arçelik account credentials
+   Arcelik_EMAIL=your_email@example.com
+   Arcelik_PASSWORD=your_password
 
    # Home Assistant MQTT broker settings
-   MQTT_HOST=homeassistant.local  # or IP address
+   MQTT_HOST=homeassistant.local  # or appropriate IP address
    MQTT_PORT=1883
-   MQTT_USERNAME=your_mqtt_user   # if authentication enabled
-   MQTT_PASSWORD=your_mqtt_pass   # if authentication enabled
+   MQTT_USERNAME=your_mqtt_user   # Created through the Mosquitto configuration page
+   MQTT_PASSWORD=your_mqtt_pass   # Created through the Mosquitto configuration page
 
    # Optional settings
-   MQTT_DISCOVERY_PREFIX=homeassistant
+   MQTT_DISCOVERY_PREFIX=homeassistant 
    MQTT_DEVICE_PREFIX=arcelik
    UPDATE_INTERVAL=30
-   DEBUG=true
+   DEBUG=false
    ```
 
 ## Usage
@@ -81,38 +56,6 @@ This Node.js application creates a bridge between Arcelik Air Conditioning units
 ```bash
 npm start
 ```
-
-### Run as a service (systemd):
-
-1. Create service file:
-   ```bash
-   sudo nano /etc/systemd/system/arcelik-mqtt.service
-   ```
-
-2. Add content:
-   ```ini
-   [Unit]
-   Description=Arcelik MQTT Bridge
-   After=network.target
-
-   [Service]
-   Type=simple
-   User=saranli
-   WorkingDirectory=/home/saranli/ArcelikConnect/node
-   ExecStart=/usr/bin/node index.js
-   Restart=always
-   RestartSec=10
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-3. Enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable arcelik-mqtt
-   sudo systemctl start arcelik-mqtt
-   ```
 
 ## Home Assistant Integration
 
@@ -189,28 +132,6 @@ The bridge automatically configures Home Assistant via MQTT discovery. Each AC u
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **MQTT Connection Failed**
-   - Check MQTT broker settings in `.env`
-   - Verify Home Assistant MQTT integration is running
-   - Test MQTT credentials manually
-
-2. **Arcelik Login Failed**
-   - Verify email/password in `.env`
-   - Check if account is locked or needs verification
-   - Ensure AC units are set up in the mobile app
-
-3. **No Devices Found**
-   - Ensure AC units are connected to WiFi
-   - Verify they appear in the Arcelik mobile app
-   - Check if account has access to the devices
-
-4. **Commands Not Working**
-   - Check device ID in MQTT topics
-   - Verify AC unit is online
-   - Look for error messages in logs
-
 ### Debug Mode
 Enable detailed logging:
 ```env
@@ -223,41 +144,25 @@ DEBUG=true
 npm start
 
 # If running as service
-sudo journalctl -u arcelik-mqtt -f
+sudo journalctl -u Arçelik-mqtt -f
 ```
 
 ### Test MQTT Manually
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h homeassistant.local -t "arcelik/#" -v
+mosquitto_sub -h homeassistant.local -t "Arçelik/#" -v
 
 # Send commands
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/power" -m "ON"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/temperature" -m "24"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
+mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/power" -m "ON"
+mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/temperature" -m "24"
+mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
+mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
+mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
 ```
-
-## Security Notes
-
-- Store credentials securely in `.env` file
-- Consider using MQTT with TLS for production
-- Regularly update dependencies for security patches
-- Monitor logs for unauthorized access attempts
-
-## Contributing
-
-This project reverse-engineers the Arcelik mobile app API. If you discover additional endpoints or features, please contribute by:
-
-1. Documenting new API calls
-2. Adding support for additional device types
-3. Improving error handling
-4. Adding tests
 
 ## License
 
-This project is for educational and personal use only. Arcelik is a trademark of Arçelik A.Ş.
+This project is for educational and personal use only. Arçelik is a trademark of Arçelik A.Ş.
 
 ## Disclaimer
 

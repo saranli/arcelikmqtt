@@ -1,13 +1,15 @@
-# Arcelik Connect API Documentation
+# ArçelikConnect API Documentation
 
 ## Overview
 
-The Arcelik Connect API is a cloud-based service that allows remote control and monitoring of Arcelik air conditioning units. The API uses WebSocket connections through Socket.IO for real-time communication and provides REST-style endpoints for device control.
+The Arçelik Connect API is a cloud-based service that allows remote control and monitoring of older Arçelik air conditioning units (such as the 18340, 12345 and 12346 models). The API uses WebSocket connections through Sails.IO and Socket.IO for real-time communication and provides REST-style endpoints for device control. Since these are older models, they rely on earlier versions of the Sails.IO (0.11.0) and Socket.IO (2.5.0) libraries.
+
+The API details were reverse engineered through the ArcelikConnect app installed on an Android emulator, with an internet connection through mitmproxy. CA certificates for mitmproxy were installed on a rooted Android emulator, which allowed inspection of https communication between the app and the cloud server.
 
 ## Base URL and Connection
 
 - **Service URL**: `https://kiwi.cosa.com.tr`
-- **Transport**: WebSocket (Socket.IO v0.11.0 compatible)
+- **Transport**: WebSocket (Sails.IO v0.11.0 and Socket.IO v2.5.0 compatible)
 - **Protocol**: HTTPS/WSS
 
 ## Authentication
@@ -85,13 +87,13 @@ GET /api/endpoints/getEndpoints
 {
   "endpoints": [
     {
-      "id": "68b49ceed416d21200836be6",
+      "id": "<deviceid>",
       "name": "Salon",
       "place": "Living Room",
       // ... other device metadata
     },
     {
-      "id": "68bef3640a84b21200cef997",
+      "id": "<deviceid>",
       "name": "Mutfak", 
       "place": "Kitchen",
       // ... other device metadata
@@ -111,7 +113,7 @@ POST /api/endpoints/getEndpoint
 #### Request Body
 ```json
 {
-  "endpoint": "68b49ceed416d21200836be6"
+  "endpoint": "<deviceid>"
 }
 ```
 
@@ -119,7 +121,7 @@ POST /api/endpoints/getEndpoint
 ```json
 {
   "endpoint": {
-    "id": "68b49ceed416d21200836be6",
+    "id": "<deviceid>",
     "acPower": true,
     "acMode": 0,
     "targetTemperature": 24,
@@ -148,13 +150,13 @@ POST /api/endpoints/sendACState
 {
   "type": "acPower",
   "value": 1,
-  "endpoint": "68b49ceed416d21200836be6"
+  "endpoint": "<deviceid>"
 }
 ```
 
 ### 5. Register Client
 
-Registers the application as a client for receiving real-time updates.
+Registers the application as a client for receiving real-time updates. This seems to be only necessary for receiving notifications on the Android device, and as such, is not used for the MQTT integration.
 
 ```
 POST /api/userclients/register
@@ -167,13 +169,13 @@ POST /api/userclients/register
     "available": true,
     "platform": "Node.js",
     "version": "18",
-    "uuid": "arcelik-mqtt-bridge-1694432996469",
+    "uuid": "Arçelik-mqtt-bridge-1694432996469",
     "model": "mqtt-bridge",
     "manufacturer": "Custom",
     "isVirtual": true,
     "serial": "mqtt-001"
   },
-  "pushToken": ""
+  "pushToken": "???"
 }
 ```
 
@@ -183,8 +185,8 @@ POST /api/userclients/register
 
 | Property | Type | Description | Values |
 |----------|------|-------------|---------|
-| `acPower` | boolean | AC unit power state | `true` (on), `false` (off) |
-| `acTurbo` | boolean | Turbo mode state | `true` (on), `false` (off) |
+| `acPower` | boolean | AC unit power state | `1` (on), `0` (off) |
+| `acTurbo` | boolean | Turbo mode state | `1` (on), `0` (off) |
 | `acMode` | number | Operating mode | `0` (cool), `1` (dry), `2` (fan), `4` (heat), `6` (auto) |
 | `targetTemperature` | number | Target temperature | 16-30 (°C) |
 | `temperature` | number | Current room temperature | Measured temperature (°C) |
@@ -247,7 +249,7 @@ Event: `endpoint`
 ```json
 {
   "verb": "updated",
-  "id": "68b49ceed416d21200836be6",
+  "id": "<deviceid>",
   "data": {
     "acPower": true,
     "targetTemperature": 25,
@@ -256,167 +258,3 @@ Event: `endpoint`
 }
 ```
 
-#### Connection Events
-
-- **connect**: WebSocket connection established
-- **disconnect**: WebSocket connection lost
-- **connect_error**: Connection establishment failed
-
-## Error Handling
-
-### HTTP Status Codes
-
-- **200**: Success
-- **401**: Unauthorized (invalid token)
-- **403**: Forbidden (expired token)
-- **404**: Not found
-- **500**: Internal server error
-
-### Authentication Errors
-
-When authentication fails (401/403), the client should:
-1. Mark connection as disconnected
-2. Clear existing auth token
-3. Attempt re-authentication
-4. Re-establish WebSocket connection
-
-## Rate Limiting and Best Practices
-
-### Connection Management
-
-1. **Persistent Connection**: Maintain a single WebSocket connection per client
-2. **Reconnection**: Implement exponential backoff for reconnection attempts
-3. **Heartbeat**: Use Socket.IO built-in ping/pong for connection health
-
-### Command Frequency
-
-1. **Device Commands**: Avoid sending commands more frequently than once per second
-2. **State Polling**: Poll device state every 30 seconds (configurable)
-3. **Batch Operations**: Group multiple commands with short delays
-
-### Error Recovery
-
-1. **Token Refresh**: Re-authenticate on 401/403 errors
-2. **Network Issues**: Implement retry logic with backoff
-3. **State Sync**: Re-fetch device state after reconnection
-
-## Sample Implementation Flow
-
-### 1. Initial Setup
-```javascript
-// Connect to Socket.IO
-const io = sailsIOClient(socketIOClient);
-io.sails.url = 'https://kiwi.cosa.com.tr';
-io.sails.transports = ['websocket'];
-```
-
-### 2. Authentication
-```javascript
-// Login and get auth token
-const loginResponse = await makeRequest('/api/users/login', 'post', {
-  email: 'user@example.com',
-  password: 'password'
-});
-const authToken = loginResponse.authToken;
-```
-
-### 3. Device Discovery
-```javascript
-// Get user info and devices
-await makeAuthenticatedRequest('/api/users/getInfo', 'get');
-const endpoints = await makeAuthenticatedRequest('/api/endpoints/getEndpoints', 'get');
-```
-
-### 4. Client Registration
-```javascript
-// Register for real-time updates
-await makeAuthenticatedRequest('/api/userclients/register', 'post', clientData);
-```
-
-### 5. Real-time Monitoring
-```javascript
-// Listen for device updates
-io.socket.on('endpoint', (data) => {
-  if (data.verb === 'updated') {
-    handleDeviceUpdate(data.id, data.data);
-  }
-});
-```
-
-### 6. Device Control
-```javascript
-// Send command to device
-await makeAuthenticatedRequest('/api/endpoints/sendACState', 'post', {
-  type: 'acPower',
-  value: 1,
-  endpoint: deviceId
-});
-```
-
-## Security Considerations
-
-### Token Management
-- Store auth tokens securely
-- Implement token refresh logic
-- Clear tokens on logout/errors
-
-### Network Security
-- Use HTTPS/WSS for all communications
-- Validate SSL certificates
-- Implement request/response validation
-
-### Data Privacy
-- Minimize data logging
-- Encrypt sensitive configuration
-- Follow data retention policies
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Authentication Failures**
-   - Verify email/password credentials
-   - Check for account lockouts
-   - Ensure proper header formatting
-
-2. **Connection Issues**
-   - Verify network connectivity
-   - Check firewall settings
-   - Validate WebSocket support
-
-3. **Command Failures**
-   - Ensure device is online
-   - Verify command parameters
-   - Check rate limiting
-
-### Debug Information
-
-Enable debug logging to track:
-- API request/response cycles
-- WebSocket connection events
-- Device state changes
-- Error conditions
-
-```javascript
-const config = {
-  debug: true,
-  // ... other config
-};
-```
-
-## API Limitations
-
-### Rate Limits
-- Maximum 1 command per second per device
-- Bulk operations should include delays
-- Real-time updates are throttled by the server
-
-### Device Constraints
-- Commands may take 2-5 seconds to execute
-- Some settings require the AC to be powered on
-- Network connectivity affects response times
-
-### Service Availability
-- API is dependent on Arcelik cloud infrastructure
-- Maintenance windows may affect availability
-- Regional network issues can impact connectivity
