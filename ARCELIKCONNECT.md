@@ -1,4 +1,4 @@
-# ArçelikConnect API Documentation
+# ArcelikConnect API Documentation
 
 ## Overview
 
