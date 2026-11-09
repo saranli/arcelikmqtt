@@ -1,0 +1,29 @@
+name: Arçelik AC MQTT Bridge
+version: "1.0.0"
+slug: arcelik_mqtt
+description: Exposes older Arçelik (ArçelikConnect) air conditioners to Home Assistant via MQTT discovery
+url: https://github.com/saranli/arcelikmqtt
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+services:
+  - mqtt:need
+options:
+  arcelik_email: ""
+  arcelik_password: ""
+  update_interval: 30
+  debug: false
+schema:
+  arcelik_email: email
+  arcelik_password: password
+  update_interval: int(10,3600)
+  debug: bool
+  discovery_prefix: str?
+  device_prefix: str?
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_username: str?
+  mqtt_password: password?

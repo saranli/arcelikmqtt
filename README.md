@@ -12,48 +12,45 @@ This Node.js application creates a bridge between older Arçelik Air Conditionin
 
 ## Prerequisites
 
-- Node.js (v14 or later)
-- Home Assistant with MQTT broker (Mosquitto)
+- Home Assistant with the **Mosquitto broker** add-on and the **MQTT** integration
 - Arçelik AC unit with WiFi connectivity and ArcelikConnect support
 - ArcelikConnect mobile app account
 
-## Installation
+## Installation as a Home Assistant add-on (recommended)
 
-1. **Clone and setup:**
-   ```bash
-   cd /home/saranli/ArçelikConnect/node
-   npm install
-   ```
+The bridge is packaged as a Home Assistant add-on (called "apps" in newer HA versions) in
+[arcelik_mqtt/](arcelik_mqtt/). The Supervisor builds and runs it on your HA host, starts it at
+boot, and hands it the Mosquitto credentials automatically. Nothing needs to be published to the
+official store.
 
-2. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   nano .env
-   ```
+**Option A: add this GitHub repository**
 
-3. **Update configuration in `.env`:**
-   ```env
-   # Your Arçelik account credentials
-   Arcelik_EMAIL=your_email@example.com
-   Arcelik_PASSWORD=your_password
+1. In Home Assistant go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
+2. Add `https://github.com/saranli/arcelikmqtt` and close the dialog.
+3. Find **Arçelik AC MQTT Bridge** in the store and click **Install**.
 
-   # Home Assistant MQTT broker settings
-   MQTT_HOST=homeassistant.local  # or appropriate IP address
-   MQTT_PORT=1883
-   MQTT_USERNAME=your_mqtt_user   # Created through the Mosquitto configuration page
-   MQTT_PASSWORD=your_mqtt_pass   # Created through the Mosquitto configuration page
+**Option B: install as a local add-on**
 
-   # Optional settings
-   MQTT_DISCOVERY_PREFIX=homeassistant 
-   MQTT_DEVICE_PREFIX=arcelik
-   UPDATE_INTERVAL=30
-   DEBUG=false
-   ```
+1. Copy the `arcelik_mqtt/` folder into the `/addons` share on your HA host, for example with the
+   *Samba share* or *Advanced SSH & Web Terminal* add-on, or with
+   `scp -r arcelik_mqtt root@<ha-host>:/addons/` when SSH is enabled.
+2. Go to **Settings → Add-ons → Add-on Store → ⋮ → Check for updates**.
+3. **Arçelik AC MQTT Bridge** appears under *Local add-ons*. Click it, then **Install**.
 
-## Usage
+**Configure and start**
 
-### Start the bridge:
+1. In the add-on's **Configuration** tab, set `arcelik_email` and `arcelik_password`.
+   Leave the `mqtt_*` fields empty to use the Mosquitto add-on automatically.
+2. Start the add-on and check its **Log** tab. The AC units appear as MQTT devices.
+
+## Running standalone (development)
+
+Requires Node.js 14 or later.
+
 ```bash
+cd arcelik_mqtt
+npm install
+cp .env.example .env   # then edit credentials and MQTT broker settings
 npm start
 ```
 
@@ -143,21 +140,20 @@ DEBUG=true
 # If running directly
 npm start
 
-# If running as service
-sudo journalctl -u Arçelik-mqtt -f
+# If running as an add-on: see the add-on's Log tab in Home Assistant
 ```
 
 ### Test MQTT Manually
 ```bash
 # Subscribe to all topics
-mosquitto_sub -h homeassistant.local -t "Arçelik/#" -v
+mosquitto_sub -h homeassistant.local -t "arcelik/#" -v
 
 # Send commands
-mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/power" -m "ON"
-mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/temperature" -m "24"
-mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
-mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
-mosquitto_pub -h homeassistant.local -t "Arçelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/power" -m "ON"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/temperature" -m "24"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
+mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
 ```
 
 ## License

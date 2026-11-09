@@ -1,0 +1,26 @@
+configuration:
+  arcelik_email:
+    name: ArçelikConnect email
+    description: The email you use to log in to the ArçelikConnect mobile app.
+  arcelik_password:
+    name: ArçelikConnect password
+  update_interval:
+    name: Update interval (seconds)
+    description: How often to poll device state in addition to live websocket updates.
+  debug:
+    name: Debug logging
+  discovery_prefix:
+    name: MQTT discovery prefix
+    description: Defaults to "homeassistant".
+  device_prefix:
+    name: MQTT device topic prefix
+    description: Defaults to "arcelik".
+  mqtt_host:
+    name: MQTT host (override)
+    description: Leave empty to use the Mosquitto broker add-on automatically.
+  mqtt_port:
+    name: MQTT port (override)
+  mqtt_username:
+    name: MQTT username (override)
+  mqtt_password:
+    name: MQTT password (override)
