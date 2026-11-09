@@ -193,6 +193,7 @@ POST /api/userclients/register
 | `acFanSpeed` | number | Fan speed setting | `8` (auto), `2-6` (speeds 1-5) |
 | `acVerticalSwing` | number | Vertical air direction | `0` (off), `1-6` (positions), `100` (continuous) |
 | `acHorizontalSwing` | number | Horizontal air direction | `0` (off), `1-5` (positions), `13` (leftmost), `35` (rightmost), `100` (continuous) |
+| `acLightsOff` | boolean | Display panel lights (read-only; `sendACState` is ignored) | `0` (lights on), `1` (lights off) |
 | `acInstantPower` | number | Current power consumption | Watts (W) |
 | `acPowerConsumption` | number | Total energy consumed | Watt-hours (Wh) |
 | `updatedAt` | string | Last update timestamp | ISO 8601 format |

@@ -1,22 +1,35 @@
 # Arçelik AC MQTT Bridge
 
-Bridges older Arçelik air conditioners (ArçelikConnect app, e.g. models 18340/12345/12346)
-to Home Assistant using MQTT discovery.
+Brings older Arçelik air conditioners (the ones controlled through the ArçelikConnect app) into
+Home Assistant. The add-on logs into Arçelik's cloud with your app account and publishes each
+unit to Home Assistant over MQTT.
 
-## Requirements
+## Before you start
 
-- The **Mosquitto broker** add-on installed and the **MQTT** integration set up.
+You need the **Mosquitto broker** add-on installed and the **MQTT** integration set up. The
+add-on finds the broker and its credentials on its own.
 
 ## Configuration
 
-Set `arcelik_email` and `arcelik_password` to your ArçelikConnect account, then start the add-on.
-MQTT connection details are picked up automatically from the Mosquitto add-on; only fill in the
-`mqtt_*` fields if you use an external broker.
+| Option | |
+|---|---|
+| `arcelik_email`, `arcelik_password` | The account you use in the ArçelikConnect app. Required. |
+| `update_interval` | Seconds between full refreshes. Live changes arrive immediately anyway, so the default of 30 is fine. |
+| `debug` | Logs every API request and state update. Turn it on when something looks wrong. |
+| `discovery_prefix`, `device_prefix` | MQTT prefixes. Leave them alone unless you've changed Home Assistant's discovery prefix. |
+| `mqtt_host`, `mqtt_port`, `mqtt_username`, `mqtt_password` | Only needed if you use a broker other than the Mosquitto add-on. |
 
-Each AC unit appears as an MQTT device with power, turbo, target temperature, mode, fan speed,
-swing, display-light status, current temperature, power and energy entities.
+## After starting
 
-## Tips
+Each AC shows up as a device under **Settings → Devices & services → MQTT**, with entities for
+power, turbo, target temperature, mode, fan speed, vertical and horizontal swing, the display
+light state, room temperature, power draw and total energy.
 
-- Enable **Watchdog** on the add-on's Info tab so the Supervisor restarts it if it ever crashes.
-- Enable `debug` to log every API request and state update.
+If nothing appears, check the **Log** tab. "Login failed" means the email or password is wrong.
+Anything else is usually a network problem, and the add-on keeps retrying on its own.
+
+It's also worth turning on **Watchdog** on the Info tab, so the add-on restarts if it ever
+crashes.
+
+More details, including the MQTT topics, are in the
+[README on GitHub](https://github.com/saranli/arcelikmqtt).

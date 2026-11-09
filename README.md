@@ -1,165 +1,166 @@
-# Home Assistant MQTT Bridge for controlling older Arçelik Air Conditioning units
+# Arçelik AC bridge for Home Assistant
 
-This Node.js application creates a bridge between older Arçelik Air Conditioning units ((such as the 18340, 12345 and 12346 models) and Home Assistant via MQTT. It does so by using the API between the ArçelikConnect app and their cloud server on https://kiwi.cosa.com.tr. Please refer to [the API documentation](ARCELIKCONNECT.md) for details.
+Control older Arçelik air conditioners from Home Assistant.
 
-## Features
+These units (models like 18340, 12345 and 12346) only talk to Arçelik's cloud through the
+ArçelikConnect phone app. There's no local API and no official Home Assistant support. This
+bridge logs into the same cloud service the app uses, listens for live updates from your units
+and exposes each one to Home Assistant over MQTT. You get power, mode, temperature, fan and swing
+controls, plus power and energy readings for the Energy dashboard.
 
-- **Multi-device support**: Automatically discovers all AC units on your account
-- **Full control**: Power, temperature, mode, fan speed, swing controls, turbo mode
-- **Real-time monitoring**: Receives live status updates and power consumption data from AC units via WebSocket
-- **Home Assistant integration**: Auto-discovery via MQTT with comprehensive entity support. 11 entities per device (2 switches, 1 number, 4 selects, 1 binary sensor, 3 sensors)
-- **Robust connectivity**: Birth/will messages, automatic reconnection, availability tracking
+It runs as a Home Assistant add-on, or as a plain Node.js process anywhere that can reach your
+MQTT broker.
 
-## Prerequisites
+[![Add repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsaranli%2Farcelikmqtt)
 
-- Home Assistant with the **Mosquitto broker** add-on and the **MQTT** integration
-- Arçelik AC unit with WiFi connectivity and ArcelikConnect support
-- ArcelikConnect mobile app account
+## What you need
 
-## Installation as a Home Assistant add-on (recommended)
+- An Arçelik AC that you can already control with the **ArçelikConnect** app, and the email and
+  password for that account.
+- Home Assistant with an MQTT broker. On Home Assistant OS, that means the **Mosquitto broker**
+  add-on with the **MQTT** integration set up.
 
-The bridge is packaged as a Home Assistant add-on (called "apps" in newer HA versions) in
-[arcelik_mqtt/](arcelik_mqtt/). The Supervisor builds and runs it on your HA host, starts it at
-boot, and hands it the Mosquitto credentials automatically. Nothing needs to be published to the
-official store.
+If your unit uses a different app, it most likely speaks a different protocol and won't work
+with this.
 
-**Option A: add this GitHub repository**
+## Installing the add-on
 
-1. In Home Assistant go to **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
-2. Add `https://github.com/saranli/arcelikmqtt` and close the dialog.
-3. Find **Arçelik AC MQTT Bridge** in the store and click **Install**.
+1. In Home Assistant, open **Settings → Add-ons → Add-on Store**. From the **⋮** menu, choose
+   **Repositories** and add `https://github.com/saranli/arcelikmqtt`. The button above does the same.
+2. Find **Arçelik AC MQTT Bridge** in the store and install it. The first install builds the image
+   locally, so give it a few minutes.
+3. On the **Configuration** tab, enter your ArçelikConnect email and password.
+4. Start it and keep an eye on the **Log** tab. After a few seconds you should see something like:
 
-**Option B: install as a local add-on**
+   ```
+   Connected to MQTT broker
+   Connected to Arçelik cloud
+   Logged in to Arçelik cloud
+   Found 2 AC device(s)
+   ```
 
-1. Copy the `arcelik_mqtt/` folder into the `/addons` share on your HA host, for example with the
-   *Samba share* or *Advanced SSH & Web Terminal* add-on, or with
-   `scp -r arcelik_mqtt root@<ha-host>:/addons/` when SSH is enabled.
-2. Go to **Settings → Add-ons → Add-on Store → ⋮ → Check for updates**.
-3. **Arçelik AC MQTT Bridge** appears under *Local add-ons*. Click it, then **Install**.
+   Your units then appear under **Settings → Devices & services → MQTT**.
 
-**Configure and start**
+I'd also turn on **Watchdog** on the add-on's Info tab so it gets restarted if it ever crashes.
 
-1. In the add-on's **Configuration** tab, set `arcelik_email` and `arcelik_password`.
-   Leave the `mqtt_*` fields empty to use the Mosquitto add-on automatically.
-2. Start the add-on and check its **Log** tab. The AC units appear as MQTT devices.
+The add-on picks up the Mosquitto broker and its credentials automatically. The `mqtt_*` options
+are only there in case you run a broker somewhere else.
 
-## Running standalone (development)
+### Without GitHub
 
-Requires Node.js 14 or later.
+If you'd rather not add the repository, copy the `arcelik_mqtt/` folder into the `/addons` share
+on your Home Assistant machine (the Samba or SSH add-ons both give you access to it), then hit
+**Check for updates** in the Add-on Store. It shows up under *Local add-ons*.
+
+## Running it standalone
+
+If you don't run Home Assistant OS, or just want to hack on it, run the bridge directly. You need
+Node.js 14 or newer.
 
 ```bash
 cd arcelik_mqtt
 npm install
-cp .env.example .env   # then edit credentials and MQTT broker settings
-npm start
+cp .env.example .env
 ```
 
-## Home Assistant Integration
+Fill in `.env`:
 
-The bridge automatically configures Home Assistant via MQTT discovery. Each AC unit appears with 11 entities:
+| Variable | Default | |
+|---|---|---|
+| `ARCELIK_EMAIL`, `ARCELIK_PASSWORD` | | ArçelikConnect account |
+| `MQTT_HOST`, `MQTT_PORT` | `localhost`, `1883` | Your broker |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | | Broker login, if it needs one |
+| `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant's discovery prefix |
+| `MQTT_DEVICE_PREFIX` | `arcelik` | Prefix for the bridge's own topics |
+| `UPDATE_INTERVAL` | `30` | Seconds between full state refreshes |
+| `DEBUG` | `false` | Log every API call and state update |
 
-### Switch Entities
-- **Power Switch**: Master on/off control
-- **Turbo Mode Switch**: High-performance cooling mode
+Then run `npm start`.
 
-### Number Entity
-- **Temperature Setting**: Target temperature (18-30°C, 1°C steps)
+## What shows up in Home Assistant
 
-### Select Entities  
-- **AC Mode**: cooling, dry_air, fan_only, heating, auto
-- **Fan Speed**: auto, speed_1, speed_2, speed_3, speed_4, speed_5
-- **Vertical Swing**: off, position_1-6, auto  
-- **Horizontal Swing**: off, position_1-5, leftmost, rightmost, auto
+Each AC becomes one device with these entities:
 
-### Binary Sensor Entities
-- **Display Lights Status**: Read-only status of AC display panel lights
+| Entity | Type | Notes |
+|---|---|---|
+| Power | switch | |
+| Turbo Mode | switch | |
+| Temperature | number | Target temperature, 18–30 °C |
+| Mode | select | `cooling`, `dry_air`, `fan_only`, `heating`, `auto`. Choosing a mode also turns the unit on. |
+| Fan Speed | select | `auto`, `speed_1` … `speed_5` |
+| Vertical Swing | select | `off`, `position_1` … `position_6`, `auto` |
+| Horizontal Swing | select | `off`, `position_1` … `position_5`, `leftmost`, `rightmost`, `auto` |
+| Display Lights | binary sensor | Read-only. The cloud reports it but ignores attempts to change it. |
+| Current Temperature | sensor | Room temperature measured by the unit |
+| Power Consumption | sensor | Current draw in W |
+| Total Energy | sensor | Cumulative kWh. You can add it to the Energy dashboard. |
 
-### Sensor Entities
-- **Current Temperature**: Real-time ambient temperature
-- **Power Consumption**: Current power draw (W)
-- **Total Energy**: Cumulative energy usage (kWh)
+Entities go unavailable when the bridge stops or loses its connection to the Arçelik cloud, so
+you can tell when the values in Home Assistant are stale.
 
-### MQTT Topics
+## MQTT topics
 
-**State Topic**: `arcelik/{device_id}/state`
-**Command Topics**: 
-- `arcelik/{device_id}/set/power` (ON/OFF)
-- `arcelik/{device_id}/set/turbo` (ON/OFF)  
-- `arcelik/{device_id}/set/temperature` (18-30)
-- `arcelik/{device_id}/set/mode` (cooling/dry_air/fan_only/heating/auto)
-- `arcelik/{device_id}/set/fan_speed` (auto/speed_1-5)
-- `arcelik/{device_id}/set/vertical_swing` (off/position_1-6/auto)
-- `arcelik/{device_id}/set/horizontal_swing` (off/position_1-5/leftmost/rightmost/auto)
+If you want to script against the bridge directly, everything lives under `arcelik/` (or your
+`MQTT_DEVICE_PREFIX`). `<id>` is the device ID from the Arçelik cloud.
 
-**Availability Topic**: `arcelik/{device_id}/availability` (online/offline)
+| Topic | |
+|---|---|
+| `arcelik/<id>/state` | JSON with the full device state (retained) |
+| `arcelik/<id>/set/<command>` | Send a command: `power`, `turbo`, `temperature`, `mode`, `fan_speed`, `vertical_swing` or `horizontal_swing` |
+| `arcelik/<id>/availability` | `online` / `offline`: cloud connection for this unit |
+| `arcelik/bridge/availability` | `online` / `offline`: whether the bridge itself is running |
 
-## API Mappings
+Commands take the same values as the entities above (`ON`/`OFF` for the switches). For example:
 
-### AC Modes
-- `0` → `cooling`
-- `1` → `dry_air` 
-- `2` → `fan_only`
-- `4` → `heating`
-- `6` → `auto`
-
-### Fan Speeds  
-- `8` → `auto`
-- `2` → `speed_1`
-- `3` → `speed_2`
-- `4` → `speed_3`
-- `5` → `speed_4`
-- `6` → `speed_5`
-
-### Vertical Swing
-- `0` → `off`
-- `1-6` → `position_1` to `position_6`
-- `100` → `auto`
-
-### Horizontal Swing
-- `0` → `off`  
-- `1-5` → `position_1` to `position_5`
-- `13` → `leftmost`
-- `35` → `rightmost`
-- `100` → `auto`
-
-### Switch Controls
-- **Power**: `acPower` (1=on, 0=off)
-- **Turbo**: `acTurbo` (1=on, 0=off)
-- **Display Lights**: `acLightsOff` (0=lights on, 1=lights off - inverted logic)
+```bash
+mosquitto_sub -h homeassistant.local -u USER -P PASS -t 'arcelik/#' -v
+mosquitto_pub -h homeassistant.local -u USER -P PASS -t 'arcelik/<id>/set/temperature' -m 24
+mosquitto_pub -h homeassistant.local -u USER -P PASS -t 'arcelik/<id>/set/mode' -m cooling
+```
 
 ## Troubleshooting
 
-### Debug Mode
-Enable detailed logging:
-```env
-DEBUG=true
-```
+**Login failed (check email/password).** The cloud rejected your credentials. Make sure you can log
+in to the ArçelikConnect app with the same ones.
 
-### Check Logs
-```bash
-# If running directly
-npm start
+**Entities stay unavailable.** Check the log. Either the bridge can't reach `kiwi.cosa.com.tr`
+(it keeps retrying, backing off to once every 5 minutes) or it isn't connected to MQTT.
 
-# If running as an add-on: see the add-on's Log tab in Home Assistant
-```
+**A value shows as unknown, with an "Unknown ... value from API" warning in the log.** Your unit
+reported a value the bridge doesn't have a mapping for yet. Please open an issue and include the
+log line.
 
-### Test MQTT Manually
-```bash
-# Subscribe to all topics
-mosquitto_sub -h homeassistant.local -t "arcelik/#" -v
+**Anything else.** Set `debug` to true (or `DEBUG=true` standalone). The log then shows every API
+request and every state update the bridge publishes.
 
-# Send commands
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/power" -m "ON"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/temperature" -m "24"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/mode" -m "cooling"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/fan_speed" -m "speed_3"
-mosquitto_pub -h homeassistant.local -t "arcelik/YOUR_DEVICE_ID/set/turbo" -m "ON"
-```
+## How it works
+
+The ArçelikConnect cloud is a Sails.js app reached over socket.io. After logging in, the bridge
+asks for the list of your units and their current state. From then on the server pushes changes
+over the same websocket. The bridge also refreshes everything every 30 seconds, in case it misses
+an update. All of this goes through Arçelik's servers, so if their cloud is down, so is control
+from Home Assistant.
+
+I worked out the protocol by watching the Android app's traffic through mitmproxy.
+[ARCELIKCONNECT.md](ARCELIKCONNECT.md) has the endpoints, payloads and value mappings, if you want
+to build something else on top of it.
+
+The code is small:
+
+- `arcelik_mqtt/arcelik-api.js` handles the cloud side: connecting, logging in, reconnecting and
+  sending commands.
+- `arcelik_mqtt/index.js` handles the MQTT and Home Assistant side. All entities are defined in
+  one `ENTITIES` table, so supporting another setting is mostly a matter of adding a row there.
+
+If you change the add-on, bump `version` in `arcelik_mqtt/config.yaml`. Otherwise Home Assistant
+won't offer the update.
 
 ## License
 
-This project is for educational and personal use only. Arçelik is a trademark of Arçelik A.Ş.
+MIT. See [LICENSE](LICENSE).
 
 ## Disclaimer
 
-This software is not affiliated with or endorsed by Arçelik A.Ş. Use at your own risk. The authors are not responsible for any damage to your equipment or violations of terms of service.
+This is a personal project. It is not affiliated with or endorsed by Arçelik A.Ş., and it relies
+on an undocumented API that could change or disappear at any time. Arçelik is a trademark of
+Arçelik A.Ş. Use it at your own risk.
