@@ -83,6 +83,7 @@ Each AC becomes one device with these entities:
 
 | Entity | Type | Notes |
 |---|---|---|
+| *(device name)* | climate | Thermostat card with mode (`off`, `cool`, `heat`, `dry`, `fan_only`, `auto`), target and room temperature, fan speed and swing. Horizontal swing needs a recent Home Assistant. |
 | Power | switch | |
 | Turbo Mode | switch | |
 | Temperature | number | Target temperature, 18–30 °C |
@@ -95,6 +96,9 @@ Each AC becomes one device with these entities:
 | Power Consumption | sensor | Current draw in W |
 | Total Energy | sensor | Cumulative kWh. You can add it to the Energy dashboard. |
 
+The climate entity and the individual controls work off the same state, so you can use whichever
+suits a dashboard better, or disable the ones you don't need in Home Assistant.
+
 Entities go unavailable when the bridge stops or loses its connection to the Arçelik cloud, so
 you can tell when the values in Home Assistant are stale.
 
@@ -106,7 +110,7 @@ If you want to script against the bridge directly, everything lives under `arcel
 | Topic | |
 |---|---|
 | `arcelik/<id>/state` | JSON with the full device state (retained) |
-| `arcelik/<id>/set/<command>` | Send a command: `power`, `turbo`, `temperature`, `mode`, `fan_speed`, `vertical_swing` or `horizontal_swing` |
+| `arcelik/<id>/set/<command>` | Send a command: `power`, `turbo`, `temperature`, `mode`, `fan_speed`, `vertical_swing`, `horizontal_swing` or `hvac_mode` (the climate entity's mode list) |
 | `arcelik/<id>/availability` | `online` / `offline`: cloud connection for this unit |
 | `arcelik/bridge/availability` | `online` / `offline`: whether the bridge itself is running |
 

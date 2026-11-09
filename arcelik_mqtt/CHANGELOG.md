@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Each AC now also shows up as a climate (thermostat) entity, with power and mode, target and room
+  temperature, fan speed and vertical/horizontal swing. All existing entities are unchanged, so
+  dashboards and automations that use them keep working.
+
 ## 1.1.0
 
 - Fix: the periodic refresh now actually publishes state to Home Assistant.

@@ -21,8 +21,8 @@ add-on finds the broker and its credentials on its own.
 
 ## After starting
 
-Each AC shows up as a device under **Settings → Devices & services → MQTT**, with entities for
-power, turbo, target temperature, mode, fan speed, vertical and horizontal swing, the display
+Each AC shows up as a device under **Settings → Devices & services → MQTT**, with a climate
+(thermostat) entity, plus separate entities for power, turbo, target temperature, mode, fan speed, vertical and horizontal swing, the display
 light state, room temperature, power draw and total energy.
 
 If nothing appears, check the **Log** tab. "Login failed" means the email or password is wrong.

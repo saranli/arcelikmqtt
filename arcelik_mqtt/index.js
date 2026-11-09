@@ -26,6 +26,9 @@ const HORIZONTAL_SWING = {
     5: 'position_5', 13: 'leftmost', 35: 'rightmost', 100: 'auto'
 };
 
+// Home Assistant climate hvac modes ('off' is handled as power off)
+const HVAC_MODES = { 0: 'cool', 1: 'dry', 2: 'fan_only', 4: 'heat', 6: 'auto' };
+
 const TEMP_MIN = 18;
 const TEMP_MAX = 30;
 
@@ -33,17 +36,70 @@ const reverse = (map) => Object.fromEntries(Object.entries(map).map(([k, v]) => 
 
 // ---------------------------------------------------------------------------
 // Entity table: one row per Home Assistant entity.
-//   key       discovery object id and (for controls) the command topic suffix
-//   uid       unique_id prefix (kept stable so existing HA entities survive)
-//   field     Arçelik API field written by commands
-//   parse     command payload -> API value (return undefined to reject)
-//   config    entity-specific discovery fields
+//   key        discovery object id and (for controls) the command topic suffix
+//   uid        unique_id prefix (kept stable so existing HA entities survive)
+//   component  HA platform; rows without one only define a command topic
+//   field      Arçelik API field written by commands
+//   parse      command payload -> API value (return undefined to reject)
+//   toCommands command payload -> list of [field, value] (instead of field/parse)
+//   config     entity-specific discovery fields, or a function of the base topic
 // ---------------------------------------------------------------------------
 
 const onOff = (payload) => ({ ON: 1, OFF: 0 })[payload];
 const fromMap = (map) => { const rev = reverse(map); return (payload) => rev[payload]; };
+const hvacModeValue = fromMap(HVAC_MODES);
+
+// Template helper: null renders as "None", which HA treats as unknown
+const orNone = (field) => `{{ value_json.${field} if value_json.${field} is not none else 'None' }}`;
 
 const ENTITIES = [
+    {
+        // One thermostat-style entity per unit. It reuses the command topics of
+        // the individual entities below, plus set/hvac_mode for its mode list.
+        key: 'climate', component: 'climate', uid: 'climate', name: null,
+        config: (base) => ({
+            icon: 'mdi:air-conditioner',
+            modes: ['off', ...Object.values(HVAC_MODES)],
+            mode_command_topic: `${base}/set/hvac_mode`,
+            mode_state_topic: `${base}/state`,
+            mode_state_template: orNone('hvac_mode'),
+            power_command_topic: `${base}/set/power`,
+            payload_on: 'ON',
+            payload_off: 'OFF',
+            temperature_command_topic: `${base}/set/temperature`,
+            temperature_state_topic: `${base}/state`,
+            temperature_state_template: orNone('target_temperature'),
+            current_temperature_topic: `${base}/state`,
+            current_temperature_template: orNone('current_temperature'),
+            min_temp: TEMP_MIN,
+            max_temp: TEMP_MAX,
+            temp_step: 1,
+            precision: 0.1,
+            temperature_unit: 'C',
+            fan_modes: Object.values(FAN_SPEEDS),
+            fan_mode_command_topic: `${base}/set/fan_speed`,
+            fan_mode_state_topic: `${base}/state`,
+            fan_mode_state_template: orNone('fan_speed'),
+            swing_modes: Object.values(VERTICAL_SWING),
+            swing_mode_command_topic: `${base}/set/vertical_swing`,
+            swing_mode_state_topic: `${base}/state`,
+            swing_mode_state_template: orNone('vertical_swing_mode'),
+            // Ignored by HA versions without horizontal swing support
+            swing_horizontal_modes: Object.values(HORIZONTAL_SWING),
+            swing_horizontal_mode_command_topic: `${base}/set/horizontal_swing`,
+            swing_horizontal_mode_state_topic: `${base}/state`,
+            swing_horizontal_mode_state_template: orNone('horizontal_swing_mode')
+        })
+    },
+    {
+        // Command-only: the climate entity's mode list
+        key: 'hvac_mode',
+        toCommands: (payload) => {
+            if (payload === 'off') return [['acPower', 0]];
+            const mode = hvacModeValue(payload);
+            return mode === undefined ? undefined : [['acPower', 1], ['acMode', mode]];
+        }
+    },
     {
         key: 'power', component: 'switch', uid: 'power', name: 'Power', field: 'acPower', parse: onOff,
         config: {
@@ -281,7 +337,7 @@ class ArcelikMQTTBridge {
             this.devices.set(endpoint.id, device);
             if (isNew) {
                 this.publishDiscovery(endpoint.id);
-                this.log(`Configured ${device.name} (${endpoint.id}) with ${ENTITIES.length} entities`);
+                this.log(`Configured ${device.name} (${endpoint.id}) with ${ENTITIES.filter((e) => e.component).length} entities`);
             }
             this.publishAvailability(endpoint.id);
         }
@@ -321,6 +377,8 @@ class ArcelikMQTTBridge {
             horizontal_swing_mode: this.mapValue(HORIZONTAL_SWING, s.acHorizontalSwing, 'acHorizontalSwing'),
             instant_power: s.acInstantPower ?? null,
             power_consumption: s.acPowerConsumption ?? null,
+            // Climate entity mode: 'off' when powered down, else HA's mode name
+            hvac_mode: s.acPower ? (acMode === null ? null : HVAC_MODES[s.acMode]) : 'off',
             // Legacy fields kept for anything that still reads them
             mode: s.acPower ? acMode : 'off',
             fan_mode: fanSpeed,
@@ -358,15 +416,17 @@ class ArcelikMQTTBridge {
         ];
 
         for (const entity of ENTITIES) {
+            if (!entity.component) continue; // command-only row
             const config = {
-                name: `${device.name} ${entity.name}`,
+                name: entity.name ? `${device.name} ${entity.name}` : device.name,
                 unique_id: `arcelik_${entity.uid}_${id}`,
                 device: deviceInfo,
-                state_topic: `${base}/state`,
                 availability,
                 availability_mode: 'all',
-                ...entity.config
+                ...(typeof entity.config === 'function' ? entity.config(base) : entity.config)
             };
+            // climate defines its own per-attribute topics instead
+            if (entity.component !== 'climate') config.state_topic = `${base}/state`;
             if (entity.field) config.command_topic = `${base}/set/${entity.key}`;
             this.publish(`${this.config.discoveryPrefix}/${entity.component}/arcelik_${id}/${entity.key}/config`,
                 JSON.stringify(config));
@@ -383,23 +443,30 @@ class ArcelikMQTTBridge {
             this.log(`Command received for unknown device: ${id}`, 'warn');
             return;
         }
-        const entity = ENTITIES.find((e) => e.key === key && e.field);
+        const entity = ENTITIES.find((e) => e.key === key && (e.field || e.toCommands));
         if (!entity) {
             this.log(`Unknown command: ${key}`, 'warn');
             return;
         }
-        const value = entity.parse(payload);
-        if (value === undefined) {
+        const commands = this.toCommands(entity, payload);
+        if (!commands) {
             this.log(`Invalid value for ${key}: ${payload}`, 'warn');
             return;
         }
 
         this.log(`Command for ${id}: ${key} = ${payload}`, 'debug');
-        if (entity.powerOnFirst) {
-            await this.api.sendACState(id, 'acPower', 1);
+        for (const [field, value] of commands) {
+            await this.api.sendACState(id, field, value);
+            this.log(`Sent command to ${id}: ${field} = ${value}`);
         }
-        await this.api.sendACState(id, entity.field, value);
-        this.log(`Sent command to ${id}: ${entity.field} = ${value}`);
+    }
+
+    // Translate a command payload into the API writes it needs
+    toCommands(entity, payload) {
+        if (entity.toCommands) return entity.toCommands(payload);
+        const value = entity.parse(payload);
+        if (value === undefined) return undefined;
+        return entity.powerOnFirst ? [['acPower', 1], [entity.field, value]] : [[entity.field, value]];
     }
 
     // --- Shutdown -------------------------------------------------------------
