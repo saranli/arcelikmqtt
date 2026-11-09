@@ -1,5 +1,5 @@
 name: Arçelik AC MQTT Bridge
-version: "1.0.0"
+version: "1.1.0"
 slug: arcelik_mqtt
 description: Exposes older Arçelik (ArçelikConnect) air conditioners to Home Assistant via MQTT discovery
 url: https://github.com/saranli/arcelikmqtt

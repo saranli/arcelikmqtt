@@ -15,3 +15,8 @@ MQTT connection details are picked up automatically from the Mosquitto add-on; o
 
 Each AC unit appears as an MQTT device with power, turbo, target temperature, mode, fan speed,
 swing, display-light status, current temperature, power and energy entities.
+
+## Tips
+
+- Enable **Watchdog** on the add-on's Info tab so the Supervisor restarts it if it ever crashes.
+- Enable `debug` to log every API request and state update.

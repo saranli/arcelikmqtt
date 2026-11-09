@@ -1,18 +1,10 @@
 {
   "name": "arcelik-mqtt-bridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Home Assistant MQTT bridge for Arcelik AC units",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "bridge": "node index.js",
-    "test": "node test.js",
-    "test:api": "node test-api.js",
-    "test:discovery": "node test-discovery.js",
-    "test:availability": "node test-availability.js",
-    "test:entities": "node test-entities.js",
-    "test:config": "echo \"Testing configuration...\" && node test.js",
-    "monitor": "node mqtt-monitor.js"
+    "start": "node index.js"
   },
   "author": "",
   "license": "ISC",
