@@ -17,6 +17,13 @@ const REQUEST_TIMEOUT_MS = 15000;
 const RECONNECT_WATCHDOG_MS = 60000;  // check interval for a stuck socket
 const STUCK_SOCKET_MS = 120000;       // rebuild the socket after this long offline
 const MAX_RETRY_DELAY_MS = 300000;
+// After this many failed session setups in a row on one socket, the next retry
+// rebuilds the socket instead. A socket can stay connected yet be unusable: after
+// a reconnect the server kept failing every login on it (500/MongoError) for
+// hours, while a fresh socket logged in at once.
+const FAILURES_BEFORE_NEW_SOCKET = 3;
+// Login error code the server returns for an unknown email or wrong password.
+const BAD_CREDENTIALS_CODE = 111;
 
 class ArcelikApi extends EventEmitter {
     constructor({ email, password, log }) {
@@ -31,6 +38,7 @@ class ArcelikApi extends EventEmitter {
         this.offlineSince = Date.now();
         this.retryDelay = 5000;
         this.retryTimer = null;
+        this.failedSessions = 0;    // consecutive failures on the current socket
         this.watchdogTimer = null;
         this.stopped = false;
         this.sessionRunning = false;
@@ -59,6 +67,7 @@ class ArcelikApi extends EventEmitter {
     createSocket() {
         this.destroySocket();
         this.offlineSince = Date.now();
+        this.failedSessions = 0;
 
         const io = sailsIOClient(socketIOClient);
         io.sails.url = SERVER_URL;
@@ -68,9 +77,10 @@ class ArcelikApi extends EventEmitter {
         this.socket = socket;
 
         // Fired on the first connect and again after every automatic reconnect.
+        // The retry backoff is only reset by a successful session, so a server
+        // that keeps failing is not hammered by rebuild/reconnect cycles.
         socket.on('connect', () => {
             this.log('Connected to Arçelik cloud');
-            this.retryDelay = 5000;
             this.startSession();
         });
 
@@ -121,17 +131,21 @@ class ArcelikApi extends EventEmitter {
         if (this.sessionRunning || this.stopped) return;
         this.sessionRunning = true;
         clearTimeout(this.retryTimer);
+        this.retryTimer = null;     // otherwise scheduleRetry() would skip all later retries
         try {
             await this.login();
             // The mobile app calls this right after login; kept to mirror its flow.
             await this.request('/api/users/getInfo', 'get');
             const response = await this.request('/api/endpoints/getEndpoints', 'get');
             const endpoints = (response && response.endpoints) || [];
+            this.failedSessions = 0;
+            this.retryDelay = 5000;
             this.setOnline(true);
             this.emit('session', endpoints);
             await this.refreshAll(endpoints.map((e) => e.id));
         } catch (error) {
-            this.log(`Arçelik cloud session setup failed: ${error.message}`, 'error');
+            this.failedSessions++;
+            this.log(`Arçelik cloud session setup failed (${this.failedSessions} in a row): ${error.message}`, 'error');
             this.setOnline(false);
             this.scheduleRetry();
         } finally {
@@ -143,10 +157,18 @@ class ArcelikApi extends EventEmitter {
         if (this.stopped || this.retryTimer) return;
         const delay = this.retryDelay;
         this.retryDelay = Math.min(this.retryDelay * 2, MAX_RETRY_DELAY_MS);
-        this.log(`Retrying Arçelik cloud login in ${Math.round(delay / 1000)} s`);
+        const rebuild = this.failedSessions >= FAILURES_BEFORE_NEW_SOCKET;
+        this.log(rebuild
+            ? `Rebuilding the Arçelik cloud socket in ${Math.round(delay / 1000)} s after ${this.failedSessions} failed logins`
+            : `Retrying Arçelik cloud login in ${Math.round(delay / 1000)} s`);
         this.retryTimer = setTimeout(() => {
             this.retryTimer = null;
-            if (this.socketConnected()) this.startSession();
+            if (this.stopped) return;
+            if (rebuild) {
+                this.createSocket();   // its 'connect' event starts the session
+            } else if (this.socketConnected()) {
+                this.startSession();
+            }
             // otherwise the next 'connect' event starts the session
         }, delay);
     }
@@ -155,8 +177,11 @@ class ArcelikApi extends EventEmitter {
         const { body } = await this.rawRequest('/api/users/login', 'post',
             { email: this.email, password: this.password }, false);
         if (!body || !body.authToken) {
-            // The server answers bad credentials with 200 and no token
-            throw new Error(`Login failed (check email/password): ${JSON.stringify(body).slice(0, 200)}`);
+            // The server answers with 200 and no token both for bad credentials
+            // (code 111) and for its own internal errors (e.g. code 100, MongoError).
+            const code = body && body.code;
+            const hint = code === BAD_CREDENTIALS_CODE ? 'check email/password' : 'server error';
+            throw new Error(`Login failed (${hint}, code ${code}): ${JSON.stringify(body).slice(0, 200)}`);
         }
         this.authToken = body.authToken;
         this.log('Logged in to Arçelik cloud');

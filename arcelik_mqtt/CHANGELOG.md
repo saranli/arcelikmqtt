@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.1
+
+- Fix: after a connection drop the cloud could keep refusing every login on the reconnected
+  socket (server error, "MongoError") while a fresh connection worked at once; the ACs then
+  stayed unavailable until the add-on was restarted. After 3 failed logins in a row the bridge
+  now opens a new connection by itself.
+- Fix: a pending login retry could be cancelled without being cleared, which silently stopped
+  all further retries.
+- Login errors now say "server error" for the cloud's own failures and "check email/password"
+  only for rejected credentials (code 111), and include the error code.
+- The retry backoff (5 s doubling up to 5 min) is reset only by a successful login, so a failing
+  server is not polled faster after each reconnect.
+
 ## 1.2.0
 
 - Each AC now also shows up as a climate (thermostat) entity, with power and mode, target and room
